@@ -1,0 +1,273 @@
+ __   __  _                       
+ \ \ / / (_)                      
+  \ V /   _   _ __     ___    ___ 
+   > <   | | | '_ \   / _ \  / __|
+  / . \  | | | | | | | (_) | \__ \
+ /_/ \_\ |_| |_| |_|  \___/  |___/
+                                  
+Project Organization
+	com.toferfost.xinos.server
+		XinosCore.java (and this one participates with AJAX, etc)
+		audio/ utility classes for processing audio
+		db/ classes related to database management
+	
+	com.toferfost.xinos.shared
+		dm/ data-model classes (Track, Library, etc)
+
+	com.tofersoft.xinos.client
+		XinosEntryPoint.java
+		ui/ custom widgets
+		rpc/ interfaces for AJAX-RPC remoting
+
+	webapp/WEB-INF
+		sql/derby/ *.sql for DB instantiation, etc.
+
+
+Menu System
+	Components accessed by a menu implement the MenuComponent interface. This provides
+	access to their Header (a Widget), their Body (a Widget), preferred sort order, and
+	most importantly, instantiation and access to their actual component.
+	Indeed-- kind'a cheating here because GWT-client cannot reflect-and-instantiate. But
+	down the road the GWT-server could dictate for a given user which *can* be loaded, etc.
+	The XinosEntryPoint will create the MainMenu and then direct it to create its children.
+	The MainMenu will manage what is displayed in the MainContentPanel.
+	There are only 4 components at this time: About, Media, Music, and Playlists.
+
+File Extensions, etc.
+ALL of this needs to change:
+vvvvvvvvvv
+	m4a probably ALAC, but possibly AAC
+	mp3 duh
+	wav .. not supported yet
+
+	Therefore. We need something that when given a file can determine to-which decoder to
+	use. I suppose each installed decoder registers with the Master a list of exts it deals
+	with. Then, based on the EXT, the Master asks each of the decoders if they can deal with
+	the given resource. Now the tricky part is that there will need to be an "m4a" decoder
+	which understands how to figure out the difference between AAC and ALAC.
+	
+	Actually, it's not that difficult when you think about it. (uh, yeah, right).
+	
+	At any rate, each decoder simply implements an interface:
+		String[] getFormatIds () // such as ALAC or AAC-32
+		String[] getSupportedExts ()
+		ExtTrack decode (File f)
+			It should NEVER throw an exception nor return null. "ExtTrack" is simply a
+			subclass of Track that includes some detail about the decoding: such as
+			it's effectiveness and any errors met along the way. Therefore, the Master
+			can decide to attempt employment of another decoder and eventually choose
+			the best (least problem wrought/highest confidence) decoder.
+
+	Recall that the Track class knows its singular Format. Thus, NO Decoder should
+	purport a FormatId assumed by any other Decoder; however, this IS fine with file-exts.
+	In that case, Master simple enquires with each decoder about the file. And, anyway, it
+	shouldn't be an issue since who would install multiple decoders for the same format?
+	
+	"ExtTrack" adds the following:
+		double confidence // how confident was the decoder was at accessing it: 0 = NOT, 1 = YUP!
+		StackTrace issues // if any where encountered during decoding.
+		long millisToDecode // how long it took to decode.
+		Class decoder // just a toss-back to the decoder that was used.
+^^^^^^^^^^
+
+Audio Codec, etc
+	Lets stick with Humble Video: https://github.com/artclarke/humble-video.
+
+
+Tags:
+	This is all from what can be set in Windows and WinAmp (and via iTunes)
+	Need to check what all MP3 stores-- esp if additional (but not likely, right?)
+		major_brand: M4A 
+		minor_version: 0
+		compatible_brands: M4A mp42isom
+		creation_time: 2005-12-29 10:06:33
+		title: Atonement
+		artist: John Powell
+		composer: John Powell
+		album: Bourne Supremacy
+		genre: Soundtrack
+		track: 12
+		disc: 1
+		date: 2004
+		compilation: 1
+		encoder: iTunes v6.0.1.3
+		XXX > Ignore > iTunNORM:  000000D9 000000AC 00000A87 00000571 00011F97 000120AB 0000496E 0000413B 000123D0 00011F0D
+		XXX > Ignore > iTunes_CDDB_IDs: 13+D7B21CE740BD23F31B1FF10670A0215B+4294361
+		album_artist: Album Artist
+		comment: Some comments, eh?
+		publisher: Pub Lish Er
+		grouping: categ
+		lyrics: lyrics!
+		encoder string
+		gapless_playback 1
+		copyright
+	Therefore and because of this, we may as well jetison the concept of a TAG-Table
+	and just store all of the tags in the wider TRACK-table. It is OK, however, that Track simply continues
+	to implement a List<Tag>; it's just that we'll sling them into the same TRACK database record. Moreover,
+	we can use an Enumeration to define the tags and their various values, and what not.
+		
+
+BROWSER CATS:
+	Genre, Artist, Album
+	Year, Composer, BPM, Rating, Album Artist, Play Count
+	Kind, Size, Duration, Sample Rate, Channels, Modified
+		
+SQL:
+
+	select * from (
+	select
+		tr.*,
+		ge.valString as "GENRE",
+		ar.valString as "ARTIST",
+		al.valString as "ALBUM"
+	from
+		track as tr,
+		tag as ge,
+		tag as ar,
+		tag as al
+	where 1 = 1
+		and ( tr.id = ge.trackId and ge.name = 'genre' )
+		and ( tr.id = ar.trackid and ar.name = 'artist' )
+		and ( tr.id = al.trackId and al.name = 'album' )
+	) as a 
+	where 1 = 1
+		and ( a.GENRE in ( 'Soundtrack', 'Trance', 'Electronic' ) )
+		and ( a.ARTIST in ( 'Moby', 'Aphex Twin' ) )
+		and ( a.ALBUM in ( 'Syro', 'Bourne Supremacy' ) )
+
+	Perhaps in the inner query is a view instead (yes, it is).
+
+	On alpha selection change, notify beta. Beta will select distinct artist that have genre in alpha's selection.
+	Thus, beta asks alpha: what category are you browsing and what values are selected? In the case of "all" then
+	beta will either omit the where-criteria, or use "in (true)" expression. Naturally, beta selects it's "all" and
+	then notifies gamma-- and the cycle repeats; it as well selecting it's "all" and notifying delta. Delta, however,
+	selects (non-distinct) wide track detail (which is the above). The child (beta is child to alpha, gamma to beta, and
+	is child to gamma) has to know all parents' criteria. For example, delta needs to know gamma, beta, and alpha's
+	criteria.
+	Delta will query the server with a list of queries built from interrogating up. Delta asks gamma for the query-list;
+	gamma asks beta; beta asks alpha. Alpha being the root adds it's query to the list and returns it; then beta adds
+	it's query to the list and returns it; gamma adds it and returns it; and finally delta RPC's up with the list. The
+	query object has two fields: the categorical, and a list of string values.
+	The server can process the query-list into an SQL statement, execute, and return the results as a list of track
+	objects-- for which delta renders. Therefore, the server executes two batches of queries: the first "wide" one that 
+	it developed; and the second a series of individual queries for each track that is returned from the first. Or, it
+	could just use trackFromRS on each row in the first query (and that method populates the track's tag-list).
+	Therefore, CategoricalBrowser and TrackBrowser each implement CatTrackBrowser
+		void setParentBrowser (CatTrackBrowser parent)
+		void setChildBrowser (CatTrackBrowser child);
+		void onParentSelectionChanged ()
+		List<Query> getQueryList ()
+	Create alpha, beta, gamma and delta. 
+		delta.setParentBrowser(gamma); // delta sets its parent and gamma sets its child
+		gamma.setParentBrowser(beta); // gamma sets its parent and beta sets its child
+		beta.setParentBrowser(alpha); // beta sets its parent and alpha sets its child
+
+
+STREAMING
+	From within MenuItemMusic's subCompnent the user can elect to stream the current selection.
+	If no item is selected, then every visible item will become selected and enqueued for playback;
+	otherwise, only the selected items are enqueued. "TB"
+
+	The player-popout (PP) will open and register itself when it is ready. At that point, the list
+	of trackIds to enqueue can be sent to it. It will then update its widget (an RPC call) and
+	commence playback (servlet call(s)). When a track finishes it will commence playback for the
+	next track, and so on.
+
+	TB can at any point enqueue additional tracks-- they go to the bottom of the list; naturally.
+	And the user can pause/resume/advance playback; rearrange/alter track-order; select repeat-1, 
+	repeat-all, or repeat-none. The PP also displays the album/track artwork. Can also "shuffle"
+	and I think in this case it just randomizes the order of the queue. NB: freshly enqueued tracks
+	WILL be placed at the bottom of the shuffled track! "Shuffle" is an action, not a "state."
+	
+	TB only ever "adds" tracks to PP; the user must manage the queue directly. Removing a track 
+	that is playing causes the player to stop and advance to the next track (if any). Once the list
+	has been fully played then playback ends or resumes at the top of the list ("repeat-all"). Thus,
+	the track stays in the queue even after being played.
+	
+	PP indicates which track in the queue is being played (or is paused) and there are
+	"mini controls" for pause/resume/skip as well. Actually, each track in the queue has
+	"mini controls" except that what is available is contextual...
+
+	Finally, the PP allows the user to select from a selection streaming-formats such as "AAC-32"
+	or "MP3-128" (AAC-256 is the default). The user can change this but the change will not take
+	effect until the next song is streamed/played (does not apply to resume because resume simply
+	invokes the HTML5 audio object's "resume" method-- the media has already loaded). Incidentally,
+	not every codec is supported... or, perhaps, upon initialization the Audio object can be 
+	interrogated to ensure various fomrats are supported (e.g., ALAC is NOT supported in Chrome
+	where as in Safari it might, ya know).
+	
+	BTW, streaming a "playlist" is nothing more than enqueuing the playlist's entire track-list.
+	
+	On the servlet side (SS): it recieves a request for trackId=X, formatId=Y and nextTrackId=Z.
+	Based on that it will transcode the track into the format and stream (we hope that
+	transcoding can stream!). After a moment of transcoding-and-streaming it will begin to 
+	transcode the nextTrack to a temp file; with any luck, by the time the PP finishes then
+	SS will have completed transcoding. PP will request trackId=Z...nextTrackId=A. And, so long
+	as the formats are the same, it can simply stream-from-disc (and start transcoding the
+	nextTrackId). Otherwise, it can delete the temporary file. Ok, future feature.
+	
+	Actually, a slightly better thought, maybe. The client requests 
+		"/Xinos/stream/17_alac.m4a" or "/Xinos/stream/17_aac-32.mp4" etc.
+		
+	THUS, there's a feature to "download as streamable playlist" such as m3u or pls.
+
+	So, actually BOTH work. Requesting trackId, FormatId and nextTrackId; OR, on the client
+	side, requesting a streamable-playlist with trackId_formatId.ext style; or, as below as
+	a zip.
+
+	A similar feature, "download," does all of the above but w/o the player. Instead, a dialog
+	is displayed and the user can select output format (including ALAC, I suppose). The tracks
+	are transcoded, stuffed into a zip, and piped down to the user's browser. The Download
+	Servlet (DS) works almost like the SS but obviously receives a list of trackIds and a formatId.
+	If the DS can stream the zip, no problem, otherwise the DS has a limit in the total size;
+	something like 2 GB or such (configurable)-- meaning the final track may be screwed up.
+
+CONFIGURATION:
+	Is more or less split into three categories: you, me, and others.
+	"You" are personal preferences (e.g., default transcoder).
+	"Me" are system configuration settings (e.g., path to FFMPEG).
+	"Others" deals with access by other users.
+
+	"You" personal preferences
+		Transcoders available and enabled
+			transcoder.AAC.enabled.48=true
+			transcoder.AAC.enabled.64=true etc
+		Default transcoder and bitrate
+			transcoder.default.id=AAC
+			transcoder.default.bitrate=128
+	
+	"Me" system configuration
+		Server home (default is ${user.home}/Xinos)
+			xinos.home=C:\Users\cmetyko\Xinos
+		Path to FFMPEG
+			ffmpeg.bin=C:\Program Files\ffmpeg\bin\ffmpeg.exe
+
+	When the system first runs it creates the data-store; naturally, at this point it
+	will also prime all of the properties. Altering any of the properties saves the
+	alteration. Other components of the server (such as the streamer) can access a
+	static method in XinosCore to retrieve a property (by key), or even to set it
+	(which persists it, too).
+	
+	There is one other configuration file: data-store.properties. This has exactly
+	only 5 properties relating to JDBC. Everything else is configuration stored in
+	the data-store. Keep in mind the idea is that the application is a runnable-jar.
+	Users shouldn't be editing files within it. Thus, the various data-store properties
+	can be supplied: as environment variables, or java-parameters; the properties can
+	be specified individually, or the path to a properties file (with the properties)
+	can be specified (or both). These properties are only ingested at start-up; changes
+	to the properties-file have no effect until the next launch. Properties passed in
+	as java-parameters take precedence over environmental parameters-- both of which
+	take precedence over default values. Finally, in lieu of environmental or parameter
+	properties, there is a data-store.properties file in the Xinos server home and this
+	is definitive; this file is created on first-run (based on environmental, parameter 
+	and default settings). So we attempt to read that file first, and then construct it
+	based on environmental, parameter supplied, and default means. Although possible,
+	Xinos will not permit UI users to alter JDBC configuration; this must be done on the
+	server.
+
+	From XinosCore, property values can be accessed as String, Long, Double, Boolean,
+	or Date; internally, however, they are persisted as Strings and converted as
+	required (e.g., a Date is stored as a millis-string). JDBC properties are not
+	available, however. Oh, and File, too, why not.
+
+

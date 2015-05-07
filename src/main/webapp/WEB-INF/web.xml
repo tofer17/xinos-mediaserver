@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://java.sun.com/xml/ns/javaee" xmlns:web="http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd" version="2.5">
+
+    <!-- Servlets -->
+	<servlet>
+		<servlet-name>core</servlet-name>
+		<servlet-class>com.tofersoft.xinos.server.XinosCore</servlet-class>
+		<load-on-startup>1</load-on-startup>
+	</servlet>
+
+	<servlet>
+		<servlet-name>streamer</servlet-name>
+		<servlet-class>com.tofersoft.xinos.server.Streamer</servlet-class>
+		<load-on-startup>2</load-on-startup>
+	</servlet>
+
+	<servlet>
+		<servlet-name>player</servlet-name>
+		<servlet-class>com.tofersoft.xinos.server.PlayerLister</servlet-class>
+	</servlet>
+
+		<!-- Servlet Mappings -->
+	<servlet-mapping>
+		<servlet-name>core</servlet-name>
+		<url-pattern>/Xinos/core</url-pattern>
+	</servlet-mapping>
+
+	<servlet-mapping>
+		<servlet-name>core</servlet-name>
+		<url-pattern>/Player/core</url-pattern>
+	</servlet-mapping>
+
+	<servlet-mapping>
+		<servlet-name>streamer</servlet-name>
+		<url-pattern>/Player/stream/*</url-pattern>
+	</servlet-mapping>
+
+	<servlet-mapping>
+		<servlet-name>player</servlet-name>
+		<url-pattern>/Xinos/play</url-pattern>
+	</servlet-mapping>
+
+	<!-- Default page to serve -->
+	<welcome-file-list>
+		<welcome-file>Xinos.html</welcome-file>
+	</welcome-file-list>
+
+</web-app>

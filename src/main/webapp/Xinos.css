@@ -1,0 +1,19 @@
+.XinosPBC > div:FIRST-CHILD > div:FIRST-CHILD {
+	background-image: linear-gradient(to bottom, rgb(138, 219, 149) 0%, rgb(138, 219, 149) 100%);
+}
+
+.xinosProgressBar {
+	background-color: #eee;
+}
+
+.xinosProgressBarPlayback {
+	background-color: blue;
+}
+
+.xinosProgressBarBuffer {
+	background-color: #aaa;
+}
+
+.xinosProgressBarPrebuffer {
+	background-color: yellow;
+}

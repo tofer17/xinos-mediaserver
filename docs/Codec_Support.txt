@@ -1,0 +1,56 @@
+Supported Codecs and Muxers
+
+Xinos will decode whatever the heck it can. Encoding is limited, however. "Transcoders" are
+combinations of Muxer (format) and Codec limited to sample/bit rates. Transcoders are identified
+by their Codec, and specified with the sample/bit rate.
+
+Transcoders:
+	ID    | Encoder    | Muxer | Mime type       | Sample Rates...
+	WAV   | pcm_s16le  | wav   | audio/x-wav     | 
+	AIFF  | pcm_s16be  | aiff  | audio/aiff      | 
+	ALAC  | alac       | mp4   | application/mp4 | 
+	FLAC  | flac       | flac  | audio/x-flac    | 
+	OGG   | vorbis     | ogg   | application/ogg | 
+	AAC   | aac        | mp4   | application/mp4 | 96000 88200 64000 48000 44100 32000 24000 22050 16000 12000 11025 8000 7350
+	MP3   | libmp3lame | mp3   | audio/mpeg      |                   48000 44100 32000 24000 22050 16000 12000 11025 8000
+
+MP3 Bit Rates: 16 24 32 40 48 56 64 80 96 112 128 160 192 224 256     320
+AAC Bit Rates:                   64 80 96     128 160 192 224 256 288 320
+OGG Bit Rates:             48    64 80 96 112 128 160 192 224 256     320 500
+
+	
+Thoughts...
+	So it appears that ffmpeg misreports "sample rates," at least in the sense that it doesn't always produce the full
+	result for a given muxer. For example, the ogg and wav, and aiff muxers. Another thing is that the encoders
+	permit an arbitrary bit-rate (-b) and the muxer controls sample-rate (-ar). But our desire is to give the user a list
+	of transcoders (WAV,MP3, AAC); and then a list a "quality settings" from low to high-- which obviously doesn't quite
+	fit for the lossless varieties.
+	I am beginning to think that for the lossless transcoders (MP3, AAC, and OGG) the Sample-Rate is whatever the incoming rate
+	is and the user selects the bit-rate from this list (128 is always the default):
+		16 24 32 40 48 56 64 80 96 112 128 160 192 224 256 288 320
+	For the lossless varieties, "1411" is the only "bit rate" to select.
+	
+	So, back to the "Transcoder" interface. It needs to provide its: name ("OGG"), description ("Vorbis/OGG"), 
+	mimeType ("audio/x-flac"), bitRates (List<String>), and defaultBitRate. When given a filename and bitRate 
+	it should produce a List<String> of command-line options to encode the given file using FFMPEG. These options
+	will be used via ProcessBuilder; the last option is ALWAYS the output-filename; the TransCoder should muck that
+	up such as by prefixing it with the current system time or whatever. But the LAST option is ALWAYS the output 
+	filename-- the caller needs to know what file to use (stream, package, etc.) once the process completes. Actually,
+	the caller can fart with the output filename however it wants.
+	
+	Example the AACTranscoder is given "Test.mp3"/"256", it returns (as list of Strings):
+		-i Test.mp3 -codec:a aac -f mp4 -b:a 256k -strict experimental Test-AAC-256.m4a
+	
+	The caller might alter the last option, the output filename, to: 1234058376245_Test-AAC-256.m4a
+	
+	Oh, yeah, Transcoder also needs to implement Comparable and isLossy. This is for sorting: 
+		a) AAC, MP3, OGG, AIFF, ALAC, FLAC, WAV => Lossy first, lossless second.
+		b) AIFF, ALAC, FLAC, WAV, AAC, MP3, OGG => Lossless first, lossy second.
+		c) AAC, AIFF, ALAC, FLAC, MP3, OGG, WAV => Natural.
+	
+	Prefer "a." Can just make lossy formats w/ a negative value and lossless with positive; then name sort.
+	Even easier is just that Transcoder's compare method decides if it is lossy and the comparee isn't, then
+	it returns a "1" to indicate that it sorts "higher;" if both are lossy then it simply compares by name.
+
+
+

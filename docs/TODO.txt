@@ -1,0 +1,6 @@
+TODO:
+Keep working on SelectLibraryWindow.
+Then go about replicating desired behaviors up to the media browser.
+
+looks like we need better control of where Streamer creates the file to stream; we're getting exit code
+	of 1 (should be 0). Probably a perm issue. The commandworks otherwise.
